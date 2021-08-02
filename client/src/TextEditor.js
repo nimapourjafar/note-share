@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 import { io } from "socket.io-client";
+import {useParams } from "react-router-dom"
+import { set } from "mongoose";
 
 const TOOLBAR_OPTIONS = [
   [{ header: [1, 2, 3, 4, 5, 6, false] }],
@@ -16,6 +18,7 @@ const TOOLBAR_OPTIONS = [
 ];
 
 const TextEditor = () => {
+  const {id:documentId} = useParams();
   const [socket, setSocket] = useState();
   const [quill, setQuill] = useState();
 
@@ -50,6 +53,25 @@ const TextEditor = () => {
     };
   }, [quill,socket]);
 
+  useEffect(() => {
+    if (socket==null || quill==null) return
+    const interval = setInterval(() => {
+      socket.emit("save-changes",quill.getContents())
+    }, 1000)
+    return () => {
+      clearInterval(interval);
+    }
+  },[socket,quill])
+
+  useEffect(() => {
+    if (socket==null || quill==null) return;
+    socket.once("load-document",document => {
+      quill.setContents(document);
+      quill.enable()
+    })
+    socket.emit("send-document", documentId);
+  }, [socket,quill,documentId])
+
   const wrapperRef = useCallback((wrapper) => {
     if (wrapper == null) return;
     wrapper.innerHTML = "";
@@ -59,6 +81,8 @@ const TextEditor = () => {
       theme: "snow",
       modules: { toolbar: TOOLBAR_OPTIONS },
     });
+    quill.disable()
+    quill.setText("Loading...")
     setQuill(quill);
   }, []);
 
